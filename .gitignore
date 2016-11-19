@@ -1,0 +1,6 @@
+*.pyc
+*.model
+*.caffemodel
+image/*
+!image/.gitkeep
+sample/*
