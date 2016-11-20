@@ -22,10 +22,11 @@ def parse_arg():
     parser.add_argument('target_dir', type=str, help='Target image directory path')
     parser.add_argument('--gpu', '-g', type=int, default=-1, help='GPU device index (negative value indicates CPU)')
     parser.add_argument('--model', '-m', type=str, default='vgg19.model', help='Model file path')
-    parser.add_argument('--batch_size', '-b', type=int, default=20, help='Mini batch size')
+    parser.add_argument('--batch_size', '-b', type=int, default=10, help='Mini batch size')
     parser.add_argument('--lr', '-l', type=float, default=1, help='Learning rate')
     parser.add_argument('--iter', '-i', type=int, default=1000)
-    parser.add_argument('--max-image', type=int, default=100, help='Maximum number of source/target images')
+    parser.add_argument('--max-image', type=int, default=2000, help='Maximum number of source/target images to be loaded')
+    parser.add_argument('--near-image', type=int, default=100, help='Maximum number of source/target images for nearest neighbor')
     parser.add_argument('--tv-weight', type=float, default=0.001, help='Total variation loss weight')
     return parser.parse_args()
 
@@ -51,12 +52,25 @@ def list_dir_image(path, max_size):
             break
     return paths
 
+# for debug
+#def feature(net, x, layers=['4_1']):
 def feature(net, x, layers=['3_1', '4_1', '5_1']):
     y = net(x)
     y = [y[layer] for layer in layers]
     return y
 
-def mean_feature(net, paths, image_size, batch_size):
+def rank_image(net, paths, image_size, image, top_num):
+    xp = net.xp
+    image_num = len(paths)
+    diffs = []
+    for path in paths:
+        im = load_image(path, image_size)
+        diffs.append(np.sum(np.square(image - im)))
+    diffs = np.asarray(diffs, dtype=np.float32)
+    rank = np.argsort(diffs)
+    return [paths[r] for r in rank[:top_num]]
+
+def mean_feature(net, paths, image_size, base_feature, top_num, batch_size):
     xp = net.xp
     image_num = len(paths)
     features = []
@@ -64,15 +78,23 @@ def mean_feature(net, paths, image_size, batch_size):
         x = [load_image(path, image_size) for path in paths[i:i + batch_size]]
         x = xp.asarray(np.concatenate(x, axis=0))
         y = feature(net, x)
-        features.append([xp.sum(layer.data, axis=0, keepdims=True) for layer in y])
-    return map(lambda xs: xp.sum(xp.concatenate(xs, axis=0), axis=0, keepdims=True) / image_num, zip(*features))
+        features.append([cuda.to_cpu(layer.data) for layer in y])
+    if image_num > top_num:
+        last_features = np.concatenate([f[-1] for f in features], axis=0)
+        last_features = last_features.reshape((last_features.shape[0], -1))
+        base_feature = cuda.to_cpu(base_feature).reshape((1, -1,))
+        diff = np.sum((last_features - base_feature) ** 2, axis=1)
+
+        nearest_indices = np.argsort(diff)[:top_num]
+        nearests = [np.concatenate(xs, axis=0)[nearest_indices] for xs in zip(*features)]
+    else:
+        nearests = [np.concatenate(xs, axis=0) for xs in zip(*features)]
+
+    return [xp.asarray(np.mean(f, axis=0, keepdims=True)) for f in nearests]
 
 def feature_diff(s, t):
     xp = cuda.get_array_module(s)
     v = t - s
-    print v[:,:10,:10,:10]
-    print float(xp.sqrt(xp.square(v).sum())), float(xp.sqrt(xp.square(t).sum())), float(xp.sqrt(xp.square(s).sum()))
-#    v / xp.sqrt(xp.square(v).sum())
     return v
 
 def total_variation(x):
@@ -84,16 +106,19 @@ def total_variation(x):
 
 def update(net, optimizer, link, target_layers, tv_weight=0.001):
     layers = feature(net, link.x)
-    loss = 0
+    total_loss = 0
+    losses = []
     for layer, target in zip(layers, target_layers):
-        loss += F.mean_squared_error(layer, target)
+        loss = F.mean_squared_error(layer, target)
+        losses.append(float(loss.data))
+        total_loss += loss
     tv_loss = tv_weight * total_variation(link.x)
-    print float(loss.data), float(tv_loss.data)
-    loss += tv_loss
+    losses.append(float(tv_loss.data))
+    total_loss += tv_loss
     link.cleargrads()
-    loss.backward()
+    total_loss.backward()
     optimizer.update()
-    return float(loss.data)
+    return losses
 
 def optimize(net, link, target_layers, iteration):
     optimizer = LBFGS(size=10)
@@ -102,6 +127,7 @@ def optimize(net, link, target_layers, iteration):
         update(net, optimizer, link, target_layers)
     return link.x.data
 
+import time
 def main():
     args = parse_arg()
     iteration = args.iter
@@ -109,38 +135,49 @@ def main():
     device_id = args.gpu
     lr = args.lr
     tv_weight = args.tv_weight
+    max_image = args.max_image
+    near_image_num = args.near_image
     net = VGG19()
     serializers.load_npz(args.model, net)
     if device_id >= 0:
         net.to_gpu(device_id)
     xp = net.xp
 
-    source_image_files = list_dir_image(args.source_dir, args.max_image)
-    source_feature = mean_feature(net, source_image_files, input_image_size, batch_size)
-    target_image_files = list_dir_image(args.target_dir, args.max_image)
-    target_feature = mean_feature(net, target_image_files, input_image_size, batch_size)
+    image = load_image(args.input_image, input_image_size)
+    x = xp.asarray(image)
+    org_layers = feature(net, x)
+    org_layers = [layer.data for layer in org_layers]
+
+    print('Calculating source feature')
+    source_image_files = list_dir_image(args.source_dir, max_image)
+    if len(source_image_files) > near_image_num:
+        source_image_files = rank_image(net, source_image_files, input_image_size, image, near_image_num)
+    source_feature = mean_feature(net, source_image_files, input_image_size, org_layers[-1], near_image_num, batch_size)
+
+    print('Calculating target feature')
+    target_image_files = list_dir_image(args.target_dir, max_image)
+    if len(target_image_files) > near_image_num:
+        target_image_files = rank_image(net, target_image_files, input_image_size, image, near_image_num)
+    target_feature = mean_feature(net, target_image_files, input_image_size, org_layers[-1], near_image_num, batch_size)
+
     attribute_vector = [feature_diff(s, t) for s, t in zip(source_feature, target_feature)]
 
-    x = xp.asarray(load_image(args.input_image, input_image_size))
-    layers = feature(net, x)
-    layers = [layer.data for layer in layers]
-
     base, ext = os.path.splitext(args.output_image)
-    for i in six.moves.range(0, 11):
-        w = i * 1.0
+    for i in six.moves.range(1, 11):
+        w = i * 0.2
         print('Generating image for weight: {0:.2f}'.format(w))
         link = chainer.Link(x=x.shape)
         if device_id >= 0:
             link.to_gpu(device_id)
-#        link.x.data[...] = x
         link.x.data[...] = xp.random.uniform(-10, 10, x.shape).astype(np.float32)
-        target_layers = [layer + w * a for layer, a in zip(layers, attribute_vector)]
-        optimizer = LBFGS(lr, size=10)
-#        optimizer = chainer.optimizers.Adam(lr)
+        target_layers = [layer + w * a for layer, a in zip(org_layers, attribute_vector)]
+        optimizer = LBFGS(lr, size=5)
         optimizer.setup(link)
         for j in six.moves.range(iteration):
-            loss = update(net, optimizer, link, target_layers, tv_weight)
+            losses = update(net, optimizer, link, target_layers, tv_weight)
+            print(losses)
             if (j + 1) % 500 == 0:
+                print('iter {} done loss:'.format(j + 1))
                 save_image('{0}_{1:02d}_{2:04d}{3}'.format(base, i, j + 1, ext), cuda.to_cpu(link.x.data))
         save_image('{0}_{1:02d}{2}'.format(base, i, ext), cuda.to_cpu(link.x.data))
         print('Completed')
