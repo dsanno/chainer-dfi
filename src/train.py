@@ -131,7 +131,6 @@ def adjust_color_distribution(x, mean, std):
     s = np.std(x, axis=(2, 3), keepdims=True)
     return (x - m) / s * std + mean
 
-import time
 def main():
     args = parse_arg()
     iteration = args.iter
