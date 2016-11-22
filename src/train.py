@@ -181,9 +181,10 @@ def main():
         optimizer.setup(link)
         for j in six.moves.range(iteration):
             losses = update(net, optimizer, link, target_layers, tv_weight)
-            print(losses)
-            if (j + 1) % 500 == 0:
+            if (j + 1) % 100 == 0:
                 print('iter {} done loss:'.format(j + 1))
+                print(losses)
+            if (j + 1) % 500 == 0:
                 z = cuda.to_cpu(link.x.data)
                 z = cuda.to_cpu(link.x.data)
                 z = adjust_color_distribution(z, image_mean, image_std)
