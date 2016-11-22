@@ -31,7 +31,7 @@ def parse_arg():
     return parser.parse_args()
 
 def load_image(path, image_size):
-    image = Image.open(path).resize(image_size)
+    image = Image.open(path).resize(image_size, Image.BILINEAR)
     x = np.asarray(image, dtype=np.float32)
     return VGG19.preprocess(x, input_type='RGB')
 
