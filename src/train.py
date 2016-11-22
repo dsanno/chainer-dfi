@@ -24,10 +24,10 @@ def parse_arg():
     parser.add_argument('--model', '-m', type=str, default='vgg19.model', help='Model file path')
     parser.add_argument('--batch_size', '-b', type=int, default=10, help='Mini batch size')
     parser.add_argument('--lr', '-l', type=float, default=1, help='Learning rate')
-    parser.add_argument('--iter', '-i', type=int, default=1000)
+    parser.add_argument('--iter', '-i', type=int, default=2000)
     parser.add_argument('--max-image', type=int, default=2000, help='Maximum number of source/target images to be loaded')
     parser.add_argument('--near-image', type=int, default=100, help='Maximum number of source/target images for nearest neighbor')
-    parser.add_argument('--tv-weight', type=float, default=0.001, help='Total variation loss weight')
+    parser.add_argument('--tv-weight', type=float, default=10.0, help='Total variation loss weight')
     return parser.parse_args()
 
 def preprocess_image(image, image_size):
