@@ -27,7 +27,7 @@ def parse_arg():
     parser.add_argument('--iter', '-i', type=int, default=2000)
     parser.add_argument('--max-image', type=int, default=2000, help='Maximum number of source/target images to be loaded')
     parser.add_argument('--near-image', type=int, default=100, help='Maximum number of source/target images for nearest neighbor')
-    parser.add_argument('--tv-weight', type=float, default=10.0, help='Total variation loss weight')
+    parser.add_argument('--tv-weight', type=float, default=100.0, help='Total variation loss weight')
     return parser.parse_args()
 
 def preprocess_image(image, image_size):
