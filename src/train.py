@@ -30,15 +30,18 @@ def parse_arg():
     parser.add_argument('--tv-weight', type=float, default=0.001, help='Total variation loss weight')
     return parser.parse_args()
 
-def load_image(path, image_size):
-    image = Image.open(path).resize(image_size, Image.BILINEAR)
+def preprocess_image(image, image_size):
+    image = image.resize(image_size, Image.BILINEAR)
     x = np.asarray(image, dtype=np.float32)
     return VGG19.preprocess(x, input_type='RGB')
 
-def save_image(path, x):
-    x = VGG19.postprocess(x, output_type='RGB')
-    x = x.clip(0, 255).astype(np.uint8)
-    Image.fromarray(x).save(path)
+def postprocess_image(original_image, diff):
+    diff = diff.transpose((0, 2, 3, 1))
+    diff = diff.reshape(diff.shape[1:])[:,:,::-1]
+    diff = (diff + 128).clip(0, 255).astype(np.uint8)
+    diff_image = Image.fromarray(diff).resize(original_image.size, Image.BILINEAR)
+    image = np.asarray(original_image, dtype=np.int32) + np.asarray(diff_image, dtype=np.int32) - 128
+    return Image.fromarray(image.clip(0, 255).astype(np.uint8))
 
 def list_dir_image(path, max_size):
     files = os.listdir(path)
@@ -62,7 +65,7 @@ def rank_image(net, paths, image_size, image, top_num):
     image_num = len(paths)
     diffs = []
     for path in paths:
-        im = load_image(path, image_size)
+        im = preprocess_image(Image.open(path), image_size)
         diffs.append(np.sum(np.square(image - im)))
     diffs = np.asarray(diffs, dtype=np.float32)
     rank = np.argsort(diffs)
@@ -73,7 +76,7 @@ def mean_feature(net, paths, image_size, base_feature, top_num, batch_size):
     image_num = len(paths)
     features = []
     for i in six.moves.range(0, image_num, batch_size):
-        x = [load_image(path, image_size) for path in paths[i:i + batch_size]]
+        x = [preprocess_image(Image.open(path), image_size) for path in paths[i:i + batch_size]]
         x = xp.asarray(np.concatenate(x, axis=0))
         y = feature(net, x)
         features.append([cuda.to_cpu(layer.data) for layer in y])
@@ -123,6 +126,11 @@ def optimize(net, link, target_layers, iteration):
         update(net, optimizer, link, target_layers)
     return link.x.data
 
+def adjust_color_distribution(x, mean, std):
+    m = np.mean(x, axis=(2, 3), keepdims=True)
+    s = np.std(x, axis=(2, 3), keepdims=True)
+    return (x - m) / s * std + mean
+
 import time
 def main():
     args = parse_arg()
@@ -139,7 +147,8 @@ def main():
         net.to_gpu(device_id)
     xp = net.xp
 
-    image = load_image(args.input_image, input_image_size)
+    original_image = Image.open(args.input_image)
+    image = preprocess_image(original_image, input_image_size)
     image_mean = np.mean(image, axis=(2, 3), keepdims=True)
     image_std = np.std(image, axis=(2, 3), keepdims=True)
     x = xp.asarray(image)
@@ -177,11 +186,14 @@ def main():
             if (j + 1) % 500 == 0:
                 print('iter {} done loss:'.format(j + 1))
                 z = cuda.to_cpu(link.x.data)
-                mean = np.mean(z, axis=(2, 3), keepdims=True)
-                std = np.std(z, axis=(2, 3), keepdims=True)
-                z = (z - mean) / std * image_std + image_mean
-                save_image('{0}_{1:02d}_{2:04d}{3}'.format(base, i, j + 1, ext), z)
-        save_image('{0}_{1:02d}{2}'.format(base, i, ext), cuda.to_cpu(link.x.data))
+                z = cuda.to_cpu(link.x.data)
+                z = adjust_color_distribution(z, image_mean, image_std)
+                file_name = '{0}_{1:02d}_{2:04d}{3}'.format(base, i, j + 1, ext)
+                postprocess_image(original_image, z - image).save(file_name)
+        z = cuda.to_cpu(link.x.data)
+        z = adjust_color_distribution(z, image_mean, image_std)
+        file_name = '{0}_{1:02d}_{2}'.format(base, i, ext)
+        postprocess_image(original_image, z - image).save(file_name)
         print('Completed')
 
 if __name__ == '__main__':
