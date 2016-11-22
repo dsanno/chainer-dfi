@@ -52,8 +52,6 @@ def list_dir_image(path, max_size):
             break
     return paths
 
-# for debug
-#def feature(net, x, layers=['4_1']):
 def feature(net, x, layers=['3_1', '4_1', '5_1']):
     y = net(x)
     y = [y[layer] for layer in layers]
@@ -93,9 +91,7 @@ def mean_feature(net, paths, image_size, base_feature, top_num, batch_size):
     return [xp.asarray(np.mean(f, axis=0, keepdims=True)) for f in nearests]
 
 def feature_diff(s, t):
-    xp = cuda.get_array_module(s)
-    v = t - s
-    return v
+    return t - s
 
 def total_variation(x):
     xp = cuda.get_array_module(x.data)
