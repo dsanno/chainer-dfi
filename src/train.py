@@ -55,6 +55,11 @@ def list_dir_image(path, max_size):
             break
     return paths
 
+def make_dir(path):
+    if os.path.exists(path):
+        return
+    os.makedirs(path)
+
 def feature(net, x, layers=['3_1', '4_1', '5_1']):
     y = net(x)
     y = [y[layer] for layer in layers]
@@ -143,6 +148,7 @@ def main():
     tv_weight = args.tv_weight
     max_image = args.max_image
     near_image_num = args.near_image
+    make_dir(os.path.split(args.output_image)[0])
     net = VGG19()
     serializers.load_npz(args.model, net)
     if device_id >= 0:
