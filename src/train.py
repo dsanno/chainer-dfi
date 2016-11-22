@@ -140,6 +140,8 @@ def main():
     xp = net.xp
 
     image = load_image(args.input_image, input_image_size)
+    image_mean = np.mean(image, axis=(2, 3), keepdims=True)
+    image_std = np.std(image, axis=(2, 3), keepdims=True)
     x = xp.asarray(image)
     org_layers = feature(net, x)
     org_layers = [layer.data for layer in org_layers]
@@ -174,7 +176,11 @@ def main():
             print(losses)
             if (j + 1) % 500 == 0:
                 print('iter {} done loss:'.format(j + 1))
-                save_image('{0}_{1:02d}_{2:04d}{3}'.format(base, i, j + 1, ext), cuda.to_cpu(link.x.data))
+                z = cuda.to_cpu(link.x.data)
+                mean = np.mean(z, axis=(2, 3), keepdims=True)
+                std = np.std(z, axis=(2, 3), keepdims=True)
+                z = (z - mean) / std * image_std + image_mean
+                save_image('{0}_{1:02d}_{2:04d}{3}'.format(base, i, j + 1, ext), z)
         save_image('{0}_{1:02d}{2}'.format(base, i, ext), cuda.to_cpu(link.x.data))
         print('Completed')
 
