@@ -15,7 +15,7 @@ def parse_arg():
     parser.add_argument('attr_file', type=str, help='Attribute file path')
     parser.add_argument('out_dir1', type=str, help='Output directory for images with specific feature')
     parser.add_argument('out_dir2', type=str, help='Output directory for images without specific feature')
-    parser.add_argument('feature', type=str, choices=attribute_names, help='Attribute to separate output images')
+    parser.add_argument('feature', type=str, help='Attribute(s) to separate output images')
     parser.add_argument('include', type=str, help='Attribute(s) output images should have')
     parser.add_argument('--exclude', '-e', type=str, default='', help='Attribute(s) output images should not have')
     parser.add_argument('--dry-run', '-d', action='store_true', help='Dry run')
@@ -35,21 +35,26 @@ def main():
     args = parse_arg()
     attribute_size = len(attribute_names)
     attribute_flag = np.zeros(attribute_size, dtype=np.int32)
-    feature_id = attribute_ids[args.feature]
+    features = args.feature.split(',')
+    feature_ids = [attribute_ids[feature] for feature in features]
     include_attributes = args.include.split(',')
     if args.exclude:
         exclude_attributes = args.exclude.split(',')
     else:
         exclude_attributes = []
+    for attr in features:
+        if not attr in attribute_names:
+            print('Error: {} in feature is invalid attribute'.format(attr))
+            exit()
     for attr in include_attributes:
         if not attr in attribute_names:
-            print('Warning {} is invalid attribute'.format(attr))
-            continue
+            print('Error: {} is invalid attribute'.format(attr))
+            exit()
         attribute_flag[attribute_ids[attr]] = 1
     for attr in exclude_attributes:
         if not attr in attribute_names:
-            print('Warning {} is invalid attribute'.format(attr))
-            continue
+            print('Error: {} is invalid attribute'.format(attr))
+            exit()
         attribute_flag[attribute_ids[attr]] = -1
     make_dir(args.out_dir1)
     make_dir(args.out_dir2)
@@ -60,12 +65,15 @@ def main():
     for i, attr in enumerate(attributes):
         if not np.all(attr * attribute_flag >= 0):
             continue
-        if attr[feature_id] >= 0:
+        feature_flags = [attr[j] >= 0 for j in feature_ids]
+        if all(feature_flags):
             output_dir = args.out_dir1
             positive_num += 1
-        else:
+        elif not any(feature_flags):
             output_dir = args.out_dir2
             negative_num += 1
+        else:
+            continue
         if args.dry_run:
             continue
         file_path = os.path.join(args.image_dir, '{0:06d}.jpg'.format(i + 1))
