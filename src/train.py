@@ -131,6 +131,9 @@ def adjust_color_distribution(x, mean, std):
     s = np.std(x, axis=(2, 3), keepdims=True)
     return (x - m) / s * std + mean
 
+def find_nearest(xs, t):
+    return min(xs, key=lambda x: np.linalg.norm(x - t))
+
 def main():
     args = parse_arg()
     iteration = args.iter
@@ -169,13 +172,26 @@ def main():
     attribute_vector = [feature_diff(s, t) for s, t in zip(source_feature, target_feature)]
 
     base, ext = os.path.splitext(args.output_image)
+    residuals = []
+    initial_x = xp.random.uniform(-10, 10, x.shape).astype(np.float32)
+    print('Calculating residuals')
+    link = chainer.Link(x=x.shape)
+    if device_id >= 0:
+        link.to_gpu(device_id)
+    link.x.data[...] = initial_x
+    optimizer = LBFGS(lr, size=5)
+    optimizer.setup(link)
+    for j in six.moves.range(600):
+        losses = update(net, optimizer, link, org_layers, tv_weight)
+        if (j + 1) % 20 == 0:
+            residuals.append(cuda.to_cpu(link.x.data) - image)
     for i in six.moves.range(1, 11):
         w = i * 0.2
         print('Generating image for weight: {0:.2f}'.format(w))
         link = chainer.Link(x=x.shape)
         if device_id >= 0:
             link.to_gpu(device_id)
-        link.x.data[...] = xp.random.uniform(-10, 10, x.shape).astype(np.float32)
+        link.x.data[...] = initial_x
         target_layers = [layer + w * a for layer, a in zip(org_layers, attribute_vector)]
         optimizer = LBFGS(lr, size=5)
         optimizer.setup(link)
@@ -186,8 +202,8 @@ def main():
                 print(losses)
             if (j + 1) % 500 == 0:
                 z = cuda.to_cpu(link.x.data)
-                z = cuda.to_cpu(link.x.data)
                 z = adjust_color_distribution(z, image_mean, image_std)
+                z -= find_nearest(residuals, z - image)
                 file_name = '{0}_{1:02d}_{2:04d}{3}'.format(base, i, j + 1, ext)
                 postprocess_image(original_image, z - image).save(file_name)
         z = cuda.to_cpu(link.x.data)
