@@ -214,6 +214,7 @@ def main():
                 postprocess_image(original_image, z - image).save(file_name)
         z = cuda.to_cpu(link.x.data)
         z = adjust_color_distribution(z, image_mean, image_std)
+        z -= find_nearest(residuals, z - image)
         file_name = '{0}_{1:02d}_{2}'.format(base, i, ext)
         postprocess_image(original_image, z - image).save(file_name)
         print('Completed')
