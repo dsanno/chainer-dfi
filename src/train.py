@@ -65,11 +65,14 @@ def feature(net, x, layers=['3_1', '4_1', '5_1']):
     y = [y[layer] for layer in layers]
     return y
 
-def rank_image(net, paths, image_size, image, top_num):
+def rank_image(net, paths, image_size, image, top_num, clip_rect=None):
     xp = net.xp
     image_num = len(paths)
     diffs = []
     for path in paths:
+        im = Image.open(path).convert('RGB')
+        if clip_rect is not None:
+            im = im.crop(clip_rect)
         im = preprocess_image(Image.open(path), image_size)
         diffs.append(np.sum(np.square(image - im)))
     diffs = np.asarray(diffs, dtype=np.float32)
@@ -139,14 +142,12 @@ def adjust_color_distribution(x, mean, std):
 def find_nearest(xs, t):
     return min(xs, key=lambda x: np.linalg.norm(x - t))
 
-def main():
-    args = parse_arg()
+def train(args, image_path, source_image_paths, target_image_paths, clip_rect=None):
     iteration = args.iter
     batch_size = args.batch_size
     device_id = args.gpu
     lr = args.lr
     tv_weight = args.tv_weight
-    max_image = args.max_image
     near_image_num = args.near_image
     make_dir(os.path.split(args.output_image)[0])
     net = VGG19()
@@ -155,7 +156,9 @@ def main():
         net.to_gpu(device_id)
     xp = net.xp
 
-    original_image = Image.open(args.input_image)
+    original_image = Image.open(image_path)
+    if clip_rect is not None:
+        original_image = original_image.crop(clip_rect)
     image = preprocess_image(original_image, input_image_size)
     image_mean = np.mean(image, axis=(2, 3), keepdims=True)
     image_std = np.std(image, axis=(2, 3), keepdims=True)
@@ -164,16 +167,14 @@ def main():
     org_layers = [layer.data for layer in org_layers]
 
     print('Calculating source feature')
-    source_image_files = list_dir_image(args.source_dir, max_image)
-    if len(source_image_files) > near_image_num:
-        source_image_files = rank_image(net, source_image_files, input_image_size, image, near_image_num)
-    source_feature = mean_feature(net, source_image_files, input_image_size, org_layers[-1], near_image_num, batch_size)
+    if len(source_image_paths) > near_image_num:
+        source_image_paths = rank_image(net, source_image_paths, input_image_size, image, near_image_num, clip_rect)
+    source_feature = mean_feature(net, source_image_paths, input_image_size, org_layers[-1], near_image_num, batch_size)
 
     print('Calculating target feature')
-    target_image_files = list_dir_image(args.target_dir, max_image)
-    if len(target_image_files) > near_image_num:
-        target_image_files = rank_image(net, target_image_files, input_image_size, image, near_image_num)
-    target_feature = mean_feature(net, target_image_files, input_image_size, org_layers[-1], near_image_num, batch_size)
+    if len(target_image_paths) > near_image_num:
+        target_image_paths = rank_image(net, target_image_paths, input_image_size, image, near_image_num, clip_rect)
+    target_feature = mean_feature(net, target_image_paths, input_image_size, org_layers[-1], near_image_num, batch_size)
 
     attribute_vector = [feature_diff(s, t) for s, t in zip(source_feature, target_feature)]
 
@@ -218,6 +219,12 @@ def main():
         file_name = '{0}_{1:02d}_{2}'.format(base, i, ext)
         postprocess_image(original_image, z - image).save(file_name)
         print('Completed')
+
+def main():
+    args = parse_arg()
+    source_image_paths = list_dir_image(args.source_dir, args.max_image)
+    target_image_paths = list_dir_image(args.target_dir, args.max_image)
+    train(args, args.input_image, source_image_paths, target_image_paths)
 
 if __name__ == '__main__':
     main()
