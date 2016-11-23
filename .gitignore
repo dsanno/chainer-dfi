@@ -3,4 +3,3 @@
 *.caffemodel
 image/*
 !image/.gitkeep
-sample/*

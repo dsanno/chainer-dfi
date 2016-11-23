@@ -30,7 +30,7 @@ $ python src/create_chainer_model.py
 Example:
 
 ```
-$ python src/extract_image.py img_align_celeba list_attr_celeba.txt image/smile image/normal smiling young,black_hair,straight_hair -e eyeglasses,male,wearing_hat,pale_skin,narrow_eyes,bushy_eyebrows,chubby,double_chin,bald,bangs,receding_hairline,sideburns,wavy_hair
+$ python src/extract_image.py img_align_celeba list_attr_celeba.txt image/smile image/normal smiling young,bags_under_eyes -e eyeglasses,male,pale_skin,narrow_eyes,bushy_eyebrows,chubby,double_chin,bald,bangs,receding_hairline,sideburns,wavy_hair,blond_hair,gray_hair,mouth_slightly_open
 ```
 
 ### Interpolate feature
@@ -38,8 +38,18 @@ $ python src/extract_image.py img_align_celeba list_attr_celeba.txt image/smile 
 Example:
 
 ```
-$ python src/train.py sample/sample.png sample/out.png image/normal image/smile -g 0 -i 2000
+$ python src/train.py sample/sample.png image/out/out.png image/normal image/smile -g 0
 ```
+
+## Output example
+
+|Original|Weight: 0.4|Weight: 0.8|
+|:---:|:---:|:---:|
+|![Original image](/sample/sample.png "Original image")|![Image with interpolation weight=0.4](/sample/sample_w04.png "Weight: 0.4")|![Image with interpolation weight=0.8](/sample/sample_w04.png "Weight: 0.8")|
+
+|Weight: 1.2|Weight: 1.6|Weight: 2.0|
+|:---:|:---:|:---:|
+|![Image with interpolation weight=1.2](/sample/sample_w12.png "Weight: 1.2")|![Image with interpolation weight=1.6](/sample/sample_w16.png "Weight: 1.6")|![Image with interpolation weight=2.0](/sample/sample_w20.png "Weight: 2.0")|
 
 ## License
 
