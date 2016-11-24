@@ -36,7 +36,7 @@ def make_image_path(image_dir, name, num):
 
 def image_paths(image_dir, attribute_dataset, indices):
     names, numbers, attributes = attribute_dataset
-    return [make_image_path(image_dir, name, num) for name, num in zip(names, numbers)]
+    return [make_image_path(image_dir, names[i], numbers[i]) for i in indices]
 
 def nearest_attributes(attribute_dataset, attribute, attribute_id, positive, nearest_num):
     names, numbers, attributes = attribute_dataset
