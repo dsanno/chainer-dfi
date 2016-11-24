@@ -30,7 +30,9 @@ def parse_arg():
     parser.add_argument('--tv-weight', type=float, default=100.0, help='Total variation loss weight')
     return parser.parse_args()
 
-def preprocess_image(image, image_size):
+def preprocess_image(image, image_size, clip_rect=None):
+    if clip_rect is not None:
+        image = image.crop(clip_rect)
     image = image.resize(image_size, Image.BILINEAR)
     x = np.asarray(image, dtype=np.float32)
     return VGG19.preprocess(x, input_type='RGB')
@@ -62,8 +64,7 @@ def make_dir(path):
 
 def feature(net, x, layers=['3_1', '4_1', '5_1']):
     y = net(x)
-    y = [y[layer] for layer in layers]
-    return y
+    return [F.reshape(y[layer], (y[layer].shape[0], -1)) for layer in layers]
 
 def rank_image(net, paths, image_size, image, top_num, clip_rect=None):
     xp = net.xp
@@ -71,20 +72,18 @@ def rank_image(net, paths, image_size, image, top_num, clip_rect=None):
     diffs = []
     for path in paths:
         im = Image.open(path).convert('RGB')
-        if clip_rect is not None:
-            im = im.crop(clip_rect)
-        im = preprocess_image(Image.open(path), image_size)
+        im = preprocess_image(Image.open(path), image_size, clip_rect)
         diffs.append(np.sum(np.square(image - im)))
     diffs = np.asarray(diffs, dtype=np.float32)
     rank = np.argsort(diffs)
     return [paths[r] for r in rank[:top_num]]
 
-def mean_feature(net, paths, image_size, base_feature, top_num, batch_size):
+def mean_feature(net, paths, image_size, base_feature, top_num, batch_size, clip_rect=None):
     xp = net.xp
     image_num = len(paths)
     features = []
     for i in six.moves.range(0, image_num, batch_size):
-        x = [preprocess_image(Image.open(path), image_size) for path in paths[i:i + batch_size]]
+        x = [preprocess_image(Image.open(path).convert('RGB'), image_size, clip_rect) for path in paths[i:i + batch_size]]
         x = xp.asarray(np.concatenate(x, axis=0))
         y = feature(net, x)
         features.append([cuda.to_cpu(layer.data) for layer in y])
@@ -101,8 +100,11 @@ def mean_feature(net, paths, image_size, base_feature, top_num, batch_size):
 
     return [xp.asarray(np.mean(f, axis=0, keepdims=True)) for f in nearests]
 
-def feature_diff(s, t):
-    return t - s
+def normalized_diff(s, t):
+    xp = cuda.get_array_module(s)
+    w = t - s
+    norm = xp.asarray(np.linalg.norm(cuda.to_cpu(w), axis=1, keepdims=True))
+    return w / norm
 
 def total_variation(x):
     xp = cuda.get_array_module(x.data)
@@ -156,27 +158,26 @@ def train(args, image_path, source_image_paths, target_image_paths, clip_rect=No
         net.to_gpu(device_id)
     xp = net.xp
 
-    original_image = Image.open(image_path)
-    if clip_rect is not None:
-        original_image = original_image.crop(clip_rect)
+    original_image = Image.open(image_path).convert('RGB').crop(clip_rect)
     image = preprocess_image(original_image, input_image_size)
     image_mean = np.mean(image, axis=(2, 3), keepdims=True)
     image_std = np.std(image, axis=(2, 3), keepdims=True)
     x = xp.asarray(image)
     org_layers = feature(net, x)
     org_layers = [layer.data for layer in org_layers]
+    org_layer_norms = [xp.asarray(np.linalg.norm(cuda.to_cpu(layer), axis=1, keepdims=True)) for layer in org_layers]
 
     print('Calculating source feature')
     if len(source_image_paths) > near_image_num:
         source_image_paths = rank_image(net, source_image_paths, input_image_size, image, near_image_num, clip_rect)
-    source_feature = mean_feature(net, source_image_paths, input_image_size, org_layers[-1], near_image_num, batch_size)
+    source_feature = mean_feature(net, source_image_paths, input_image_size, org_layers[-1], near_image_num, batch_size, clip_rect)
 
     print('Calculating target feature')
     if len(target_image_paths) > near_image_num:
         target_image_paths = rank_image(net, target_image_paths, input_image_size, image, near_image_num, clip_rect)
-    target_feature = mean_feature(net, target_image_paths, input_image_size, org_layers[-1], near_image_num, batch_size)
+    target_feature = mean_feature(net, target_image_paths, input_image_size, org_layers[-1], near_image_num, batch_size, clip_rect)
 
-    attribute_vector = [feature_diff(s, t) for s, t in zip(source_feature, target_feature)]
+    attribute_vectors = [normalized_diff(s, t) for s, t in zip(source_feature, target_feature)]
 
     base, ext = os.path.splitext(args.output_image)
     residuals = []
@@ -193,13 +194,13 @@ def train(args, image_path, source_image_paths, target_image_paths, clip_rect=No
         if (j + 1) % 20 == 0:
             residuals.append(cuda.to_cpu(link.x.data) - image)
     for i in six.moves.range(1, 11):
-        w = i * 0.2
+        w = i * 0.1
         print('Generating image for weight: {0:.2f}'.format(w))
         link = chainer.Link(x=x.shape)
         if device_id >= 0:
             link.to_gpu(device_id)
         link.x.data[...] = initial_x
-        target_layers = [layer + w * a for layer, a in zip(org_layers, attribute_vector)]
+        target_layers = [layer + w * n * a for layer, n, a in zip(org_layers, org_layer_norms,  attribute_vectors)]
         optimizer = LBFGS(lr, size=5)
         optimizer.setup(link)
         for j in six.moves.range(iteration):
