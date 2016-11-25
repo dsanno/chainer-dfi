@@ -193,7 +193,7 @@ def train(args, image_path, source_image_paths, target_image_paths, clip_rect=No
         losses = update(net, optimizer, link, org_layers, tv_weight)
         if (j + 1) % 20 == 0:
             residuals.append(cuda.to_cpu(link.x.data) - image)
-    for i in six.moves.range(1, 11):
+    for i in six.moves.range(1, 6):
         w = i * 0.1
         print('Generating image for weight: {0:.2f}'.format(w))
         link = chainer.Link(x=x.shape)
