@@ -136,13 +136,6 @@ def update(net, optimizer, link, target_layers, tv_weight=0.001):
     optimizer.update()
     return losses
 
-def optimize(net, link, target_layers, iteration):
-    optimizer = LBFGS(size=10)
-    optimizer.setup(link)
-    for i in six.moves.range(iteration):
-        update(net, optimizer, link, target_layers)
-    return link.x.data
-
 def adjust_color_distribution(x, mean, std):
     m = np.mean(x, axis=(2, 3), keepdims=True)
     s = np.std(x, axis=(2, 3), keepdims=True)
