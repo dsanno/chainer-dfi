@@ -211,7 +211,7 @@ def train(args, image_path, source_image_paths, target_image_paths, input_clip_r
         if device_id >= 0:
             link.to_gpu(device_id)
         link.x.data[...] = initial_x
-        target_layers = [layer + w * n * a for layer, n, a in zip(org_layers, org_layer_norms,  attribute_vectors)]
+        target_layers = [layer * (1 - w) + w * n * a for layer, n, a in zip(org_layers, org_layer_norms,  attribute_vectors)]
         optimizer = LBFGS(lr, size=5)
         optimizer.setup(link)
         for j in six.moves.range(iteration):
@@ -228,7 +228,7 @@ def train(args, image_path, source_image_paths, target_image_paths, input_clip_r
         z = cuda.to_cpu(link.x.data)
         z = adjust_color_distribution(z, image_mean, image_std)
         z -= find_nearest(residuals, z - image)
-        file_name = '{0}_{1:02d}_{2}'.format(base, i, ext)
+        file_name = '{0}_{1:02d}{2}'.format(base, i, ext)
         postprocess_image(original_image, z - image).save(file_name)
         print('Completed')
 
