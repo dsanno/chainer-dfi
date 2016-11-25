@@ -71,7 +71,8 @@ def main():
     source_paths = image_paths(args.image_dir, attribute_dataset, source_indices)
     target_paths = image_paths(args.image_dir, attribute_dataset, target_indices)
     image_path = make_image_path(args.image_dir, args.input_name, args.input_index)
-    train(args, image_path, source_paths, target_paths, (40, 20, 210, 190))
+    clip_rect = (40, 20, 210, 190)
+    train(args, image_path, source_paths, target_paths, clip_rect, clip_rect)
 
 if __name__ == '__main__':
     main()

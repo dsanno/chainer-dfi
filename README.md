@@ -25,12 +25,12 @@ $ python src/create_chainer_model.py
 * Download img_align_celeba.zip and list_attr_celeba.txt from [CelebA Dataset web site](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html).
 * Extract zip file.
 
-### Extract images that has specific feature
+### Make image list for source and target images
 
 Example:
 
 ```
-$ python src/extract_image.py img_align_celeba list_attr_celeba.txt image/smile image/normal smiling young,bags_under_eyes -e eyeglasses,male,pale_skin,narrow_eyes,bushy_eyebrows,chubby,double_chin,bald,bangs,receding_hairline,sideburns,wavy_hair,blond_hair,gray_hair,mouth_slightly_open
+$ python src/extract_image.py img_align_celeba list_attr_celeba.txt image_normal.txt image_smile.txt smiling young,bags_under_eyes -e eyeglasses,male,pale_skin,narrow_eyes,bushy_eyebrows,chubby,double_chin,bald,bangs,receding_hairline,sideburns,wavy_hair,blond_hair,gray_hair,mouth_slightly_open
 ```
 
 ### Interpolate feature
@@ -38,7 +38,7 @@ $ python src/extract_image.py img_align_celeba list_attr_celeba.txt image/smile 
 Example:
 
 ```
-$ python src/train.py sample/sample.png image/out/out.png image/normal image/smile -g 0
+$ python src/train.py sample/sample.png image/out/out.png image_normal.txt image_smile.txt -g 0 -c 19,39,159,179
 ```
 
 ## Output example
