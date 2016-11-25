@@ -62,10 +62,11 @@ def main():
     args = parse_arg()
     attribute_dataset = load_attribute_dataset(args.attr_file)
     attribute = find_attribute(attribute_dataset, args.input_name, args.input_index)
-    if not args.feature in attribute_names:
-        print('Error: {} is invalid attribute'.format(args.feature))
+    feature = args.feature.lower()
+    if not feature in attribute_names:
+        print('Error: {} is invalid attribute'.format(feature))
         exit()
-    attribute_id = attribute_ids[args.feature]
+    attribute_id = attribute_ids[feature]
     source_indices = nearest_attributes(attribute_dataset, attribute, attribute_id, False, args.near_image)
     target_indices = nearest_attributes(attribute_dataset, attribute, attribute_id, True, args.near_image)
     source_paths = image_paths(args.image_dir, attribute_dataset, source_indices)

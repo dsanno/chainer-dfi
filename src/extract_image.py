@@ -24,11 +24,11 @@ def main():
     args = parse_arg()
     attribute_size = len(attribute_names)
     attribute_flag = np.zeros(attribute_size, dtype=np.int32)
-    features = args.feature.split(',')
+    features = args.feature.lower().split(',')
     feature_ids = [attribute_ids[feature] for feature in features]
-    include_attributes = args.include.split(',')
+    include_attributes = args.include.lower().split(',')
     if args.exclude:
-        exclude_attributes = args.exclude.split(',')
+        exclude_attributes = args.exclude.lower().split(',')
     else:
         exclude_attributes = []
     for attr in features:
