@@ -90,6 +90,11 @@ $ python src/train.py sample/sample.png image/out/out.png image_normal.txt image
 |:---:|:---:|:---:|
 |![Image with interpolation weight=0.3](/sample/sample_w03.png "Weight: 0.3")|![Image with interpolation weight=0.4](/sample/sample_w04.png "Weight: 0.4")|![Image with interpolation weight=0.5](/sample/sample_w05.png "Weight: 0.5")|
 
+# Difference from the original implementation
+
+* feature φ(x) is not normalized.
+* attribute vector w is normalized by w -> ||φ(x)|| * w / ||w|| (||w|| means L2 norm)
+
 # License
 
 MIT License
