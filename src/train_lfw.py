@@ -13,7 +13,7 @@ def parse_arg():
     parser.add_argument('attr_file', type=str, help='Attribute file path')
     parser.add_argument('input_name', type=str, help='Input person name')
     parser.add_argument('input_index', type=int, help='Input image index')
-    parser.add_argument('feature', type=str, help='Feature name')
+    parser.add_argument('feature', type=str, help='Feature name. Words must be concatenated with "_", and leading with "~" indicates set feature off (e.g. ~no_beard)')
     parser.add_argument('output_image', type=str, help='Output image file path')
     parser.add_argument('--gpu', '-g', type=int, default=-1, help='GPU device index (negative value indicate CPU)')
     parser.add_argument('--model', '-m', type=str, default='vgg19.model', help='Model file path')
@@ -63,12 +63,16 @@ def main():
     attribute_dataset = load_attribute_dataset(args.attr_file)
     attribute = find_attribute(attribute_dataset, args.input_name, args.input_index)
     feature = args.feature.lower()
+    feature_on = True
+    if feature.startswith('~'):
+        feature = feature[1:]
+        feature_on = False
     if not feature in attribute_names:
         print('Error: {} is invalid attribute'.format(feature))
         exit()
     attribute_id = attribute_ids[feature]
-    source_indices = nearest_attributes(attribute_dataset, attribute, attribute_id, False, args.near_image)
-    target_indices = nearest_attributes(attribute_dataset, attribute, attribute_id, True, args.near_image)
+    source_indices = nearest_attributes(attribute_dataset, attribute, attribute_id, not feature_on, args.near_image)
+    target_indices = nearest_attributes(attribute_dataset, attribute, attribute_id, feature_on, args.near_image)
     source_paths = image_paths(args.image_dir, attribute_dataset, source_indices)
     target_paths = image_paths(args.image_dir, attribute_dataset, target_indices)
     image_path = make_image_path(args.image_dir, args.input_name, args.input_index)
