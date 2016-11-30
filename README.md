@@ -49,7 +49,7 @@ image number: 23
 |:---:|:---:|:---:|:---:|:---:|:---:|
 |![Original image](/sample/sample_lwf_original.jpg "Original image")|![Image with interpolation weight=0.1](/sample/sample_lwf_smiling_w01.jpg "Weight: 0.1")|![Image with interpolation weight=0.2](/sample/sample_lwf_smiling_w02.jpg "Weight: 0.2")|![Image with interpolation weight=0.3](/sample/sample_lwf_smiling_w03.jpg "Weight: 0.3")|![Image with interpolation weight=0.4](/sample/sample_lwf_smiling_w04.jpg "Weight: 0.4")|![Image with interpolation weight=0.5](/sample/sample_lwf_smiling_w05.jpg "Weight: 0.5")|
 
-#### Feature: aged
+#### Feature: senior
 
 |Original|Weight: 0.1|Weight: 0.2|Weight: 0.3|Weight: 0.4|Weight: 0.5|
 |:---:|:---:|:---:|:---:|:---:|:---:|
