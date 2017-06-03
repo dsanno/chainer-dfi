@@ -189,7 +189,7 @@ def train(args, image_path, source_image_paths, target_image_paths, input_clip_r
     if device_id >= 0:
         link.to_gpu(device_id)
     link.x.data[...] = initial_x
-    optimizer = LBFGS(lr, size=5)
+    optimizer = LBFGS(lr, stack_size=5)
     optimizer.setup(link)
     for j in six.moves.range(600):
         losses = update(net, optimizer, link, org_layers, tv_weight)
@@ -205,7 +205,7 @@ def train(args, image_path, source_image_paths, target_image_paths, input_clip_r
             link.to_gpu(device_id)
         link.x.data[...] = initial_x
         target_layers = [layer + w * n * a for layer, n, a in zip(org_layers, org_layer_norms,  attribute_vectors)]
-        optimizer = LBFGS(lr, size=5)
+        optimizer = LBFGS(lr, stack_size=5)
         optimizer.setup(link)
         for j in six.moves.range(iteration):
             losses = update(net, optimizer, link, target_layers, tv_weight)
