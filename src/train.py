@@ -30,6 +30,7 @@ def parse_arg():
     parser.add_argument('--max-image', type=int, default=2000, help='Maximum number of source/target images to be loaded')
     parser.add_argument('--near-image', type=int, default=100, help='Maximum number of source/target images for nearest neighbor')
     parser.add_argument('--tv-weight', type=float, default=100.0, help='Total variation loss weight')
+    parser.add_argument('--single-weight-mode', type=float, help='When specified runs DFI only for supplied weight')
     return parser.parse_args()
 
 def preprocess_image(image, image_size, clip_rect=None):
@@ -151,6 +152,17 @@ def train(args, image_path, source_image_paths, target_image_paths, input_clip_r
     lr = args.lr
     tv_weight = args.tv_weight
     near_image_num = args.near_image
+
+    isSingleModeOn = False
+    initialWeight = 0.1
+    rangeUpperBound = 6
+
+    if args.single_weight_mode is not None:
+        print('Single weight mode is on, calculating for w = ' + args.single_weight_mode)
+        isSingleModeOn = True
+        initialWeight = args.single_weight_mode
+        rangeUpperBound = 2
+
     make_dir(os.path.split(args.output_image)[0])
     net = VGG19()
     serializers.load_npz(args.model, net)
@@ -197,8 +209,13 @@ def train(args, image_path, source_image_paths, target_image_paths, input_clip_r
             z = cuda.to_cpu(link.x.data)
             z = adjust_color_distribution(z, image_mean, image_std)
             residuals.append(z - image)
-    for i in six.moves.range(1, 6):
-        w = i * 0.1
+    for i in six.moves.range(1, rangeUpperBound):
+
+        if isSingleModeOn:
+            w = initialWeight
+        else:
+            w = i * 0.1
+
         print('Generating image for weight: {0:.2f}'.format(w))
         link = chainer.Link(x=x.shape)
         if device_id >= 0:

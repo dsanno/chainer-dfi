@@ -1,5 +1,7 @@
 *.pyc
 *.model
 *.caffemodel
+*.txt
+lfw-deepfunneled/*
 image/*
 !image/.gitkeep
