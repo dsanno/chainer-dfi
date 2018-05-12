@@ -22,6 +22,7 @@ def parse_arg():
     parser.add_argument('--iter', '-i', type=int, default=1000)
     parser.add_argument('--near-image', type=int, default=100, help='Maximum number of source/target images for nearest neighbor')
     parser.add_argument('--tv-weight', type=float, default=100.0, help='Total variation loss weight')
+    parser.add_argument('--single-weight-mode', type=float, help='When specified runs DFI only for supplied weight')
     return parser.parse_args()
 
 def load_attribute_dataset(file_path):
